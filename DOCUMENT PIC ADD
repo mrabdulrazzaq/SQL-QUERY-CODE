@@ -1,0 +1,266 @@
+ sys.dbms_lob.getlength(DBD.DOCUMENT) DOCUMENT ====
+
+DECLARE
+v_doc_img blob;
+v_doc_file_nm varchar2(300);
+v_doc_mime_typ varchar2(300);
+BEGIN
+IF :P101_DOCUMENT IS NOT NULL THEN 
+    SELECT
+        blob_content,FILENAME,MIME_TYPE
+    INTO
+        v_doc_img,v_doc_file_nm,v_doc_mime_typ
+    FROM
+        apex_application_temp_files
+    WHERE
+        name = :P20_DOCUMENT;
+
+    INSERT INTO DGMS_BOOKING_DOCUMENTS( PLOT_ID, DOCUMENT_TYPE, REMARKS, DOCUMENT, DOC_FILE_NAME, DOC_MIME_TYPE) 
+    VALUES(:P101_V_ID,:P20_DOCUMENT_TYPE,:P20_REMARKS_1, v_doc_img, v_doc_file_nm, v_doc_mime_typ);
+    COMMIT;
+END IF; 
+END;
+========================
+DECLARE
+v_doc_img blob;
+v_doc_file_nm varchar2(300);
+v_doc_mime_typ varchar2(300);
+B_ID NUMBER;
+BEGIN
+IF :P20_DOCUMENT IS NOT NULL THEN
+    SELECT
+        blob_content,FILENAME,MIME_TYPE
+    INTO
+        v_doc_img,v_doc_file_nm,v_doc_mime_typ
+    FROM
+        apex_application_temp_files
+    WHERE
+        name = :P20_DOCUMENT;
+
+    SELECT ID INTO B_ID 
+    FROM DGMS_PLOTS_BOOKING WHERE PLOT_ID = :P20_PLOT_1 AND BOOKING_STATUS IN ('BOOKED','BOOKING IN-PROCESS');
+    
+    INSERT INTO DGMS_BOOKING_DOCUMENTS( BOOKING_ID, PLOT_ID, DOCUMENT_TYPE, REMARKS, DOCUMENT, DOC_FILE_NAME, DOC_MIME_TYPE) 
+    VALUES(B_ID, :P20_PLOT_1,:P20_DOCUMENT_TYPE,:P20_REMARKS_1, v_doc_img, v_doc_file_nm, v_doc_mime_typ);
+    COMMIT;
+END IF; 
+END;
+===============================================================================
+
+DECLARE
+    v_Id  Number;
+    v_count number;
+    V_BK_COUNT NUMBER;
+    V_CL_REG_NO VARCHAR2(500);
+    V_CL_IDS VARCHAR2(200);
+    v_doc_img blob;
+    v_doc_file_nm varchar2(300);
+    v_doc_mime_typ varchar2(300);
+BEGIN
+    If apex_application.g_f01.count <> 0 then
+           
+
+        For i in 1..apex_application.g_f01.count loop
+           v_Id :=TO_NUMBER(nvl(apex_application.g_f01(i),0));
+           v_count := apex_application.g_f01.count;
+           DECLARE
+                CURSOR C1 IS
+                    SELECT * FROM DGMS_DEALERS_FORMS WHERE ID  = v_Id;
+            BEGIN
+                FOR I IN C1 LOOP
+                SELECT COUNT(*) INTO V_BK_COUNT 
+                FROM DGMS_PLOTS_BOOKING WHERE ORG_ID = :P_ORG_ID AND BOOKING_STATUS = 'BOOKED'
+                AND PLOT_ID = I.FILE_ID;
+                IF V_BK_COUNT > 0 THEN
+                SELECT CLIENT_REG_NO,CLIENT_IDS INTO V_CL_REG_NO,V_CL_IDS 
+                FROM DGMS_PLOTS_BOOKING WHERE ORG_ID = :P_ORG_ID AND BOOKING_STATUS = 'BOOKED'
+                AND PLOT_ID = I.FILE_ID;
+                END IF;
+                                INSERT INTO DGMS_TRANSFERRED_PLOT (
+                                    CLIENT_ID,
+                                    CLIENT_IDS,
+                                    DEALER_ID,
+                                    FROM_DEALER,
+                                    PLOT_ID,
+                                    STATUS,
+                                    PLAN,
+                                    SCHEDULE_PAYMENT,
+                                    PAYMENT_PLAN,
+                                    POLICY_DECISION,
+                                    POLICY_NO,
+                                    PLAN_ID,
+                                    EXTRA_CHARGES,
+                                    COMMUNITY_CHARGES,
+                                    TRANSFER_FEE
+                                    )
+                                VALUES (
+                                    V_CL_REG_NO,
+                                    V_CL_IDS,
+                                    :P124_CNIC,
+                                    :P124_FROM_DEALER,
+                                     I.FILE_ID,
+                                    'POST',
+                                    :P124_PLAN,
+                                    :P124_SCHEDULE_PAYMENT,
+                                    :P124_PAYMENT_PLAN,
+                                    :P124_POLICY_DECISION,
+                                    :P124_POLICY_NO,
+                                    :P124_PLAN_NAME,
+                                    :P124_EXTRA_CHARGES,
+                                    :P124_COMMUNITY_CHARGES,
+                                    :P124_PER_MARLA_TRANSFER_FEE
+                                );
+                    COMMIT;
+IF NVL(:P124_DOC_1,:P124_DOC) IS NOT NULL THEN
+    SELECT
+        blob_content,FILENAME,MIME_TYPE
+    INTO
+        v_doc_img,v_doc_file_nm,v_doc_mime_typ
+    FROM
+        apex_application_temp_files
+    WHERE
+        name = NVL(:P124_DOC_1,:P124_DOC);
+
+    INSERT INTO DGMS_BOOKING_DOCUMENTS( PLOT_ID, DOCUMENT_TYPE, DOCUMENT, DOC_FILE_NAME, DOC_MIME_TYPE) 
+    VALUES(I.FILE_ID,'DEALER TO DEALER', v_doc_img, v_doc_file_nm, v_doc_mime_typ);
+    COMMIT;
+END IF; 
+                END LOOP;
+            END;
+    END LOOP;
+    END IF;
+    
+END;
+DATA INSERT INTO OTHER TABLE AND FILE ATTACHMENT .
+==================================================
+
+DECLARE
+v_doc_img blob;
+v_doc_file_nm varchar2(300);
+v_doc_mime_typ varchar2(300);
+BEGIN
+IF :P261_DOCUMENT IS NOT NULL THEN
+    SELECT
+        blob_content,FILENAME,MIME_TYPE
+    INTO
+        v_doc_img,v_doc_file_nm,v_doc_mime_typ
+    FROM
+        apex_application_temp_files
+    WHERE
+        name = :P261_DOCUMENT;
+
+    INSERT INTO DGMS_BOOKING_DOCUMENTS(VOUCHER_DET_ID,DOCUMENT_TYPE,REMARKS,DOCUMENT,DOC_FILE_NAME,DOC_MIME_TYPE) 
+    VALUES(:P261_V_ID,:P261_DOCUMENTS_TYPE,:P261_REMARKS, v_doc_img,v_doc_file_nm,v_doc_mime_typ);
+    COMMIT;
+END IF; 
+END;
+
+==========================
+ sys.dbms_lob.getlength(DOCUMENT) DOCUMENT,
+
+
+=========================================================================
+  PAGE 396 
+
+declare
+    v_doc_img blob;
+    v_doc_file_nm varchar2(300);
+    v_doc_mime_typ varchar2(300);
+begin
+insert into DGMS_CLIENT_FILE_RETURN
+        (
+            BOOKING_ID
+            ,PLOT_ID
+            ,FTYPE
+            ,TTYPE
+            ,STATUS
+            ,APPROVAL_STATUS
+            ,TEMP_CANC_TYPE
+        )
+values
+        (
+            :P396_BOOKING_ID
+            ,:P396_PLOT_ID
+            ,'TEMPORARY CANCELLED'
+            ,'FILE RECEIVING'
+            ,'ACTIVE'
+            ,'PENDING'
+            ,:P396_TEMP_CANC_TYPE
+        );
+        commit;
+
+    SELECT
+        blob_content,FILENAME,MIME_TYPE
+    INTO
+        v_doc_img,v_doc_file_nm,v_doc_mime_typ
+    FROM
+        apex_application_temp_files
+    WHERE
+        name = :P396_DOC;
+
+    INSERT INTO DGMS_BOOKING_DOCUMENTS
+        (
+            BOOKING_ID
+            ,PLOT_ID
+            ,"DOCUMENT"
+            ,DOC_FILE_NAME
+            ,DOC_MIME_TYPE
+            ,DOCUMENT_TYPE
+            )
+    VALUES 
+        (   
+            :P396_BOOKING_ID
+            ,:P396_PLOT_ID
+            ,v_doc_img
+            ,v_doc_file_nm
+            ,v_doc_mime_typ
+            ,'FILE RETURN DOC'
+            );
+        commit;
+end;
+==================================================================================
+=================================================================================
+DOCUMENT PIC ADD WITH LOOP AND MULTIPLE PIC ADD 
+DECLARE
+    l_file_names apex_t_varchar2;
+    l_file  apex_application_temp_files%rowtype;
+    V_FARD NUMBER;
+
+BEGIN
+
+         l_file_names := apex_string.split (
+                        p_str => :P117_DOCUMENT,
+                        p_sep => ':' );
+    
+    FOR i IN 1 .. l_file_names.count LOOP
+        SELECT *
+        INTO l_file
+        FROM apex_application_temp_files
+        WHERE name = l_file_names(i) AND APPLICATION_ID = :APP_ID;
+
+        INSERT INTO DGMS_BOOKING_DOCUMENTS
+              (DOCUMENT, DOC_MIME_TYPE, DOC_FILE_NAME,REBATE_POLICY_ID,DOCUMENT_TYPE,INCENTIVE_POLICY_ID)
+        VALUES 
+              ( l_file.BLOB_CONTENT, 
+                l_file.MIME_TYPE, 
+                l_file.FILENAME,
+                :P117_INCENTIVE_POLIICY,
+                'REBATE POLICY',
+                :P117_ID);
+            
+        COMMIT;
+    END LOOP;
+END;
+============================
+      
+
+
+
+
+
+
+
+
+
+
+                          
