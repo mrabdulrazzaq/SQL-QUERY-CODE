@@ -1,0 +1,30 @@
+BEGIN
+    -- Validate NO OF TONS
+    IF :P87_NO_TONS IS NULL THEN
+        :P87_ERROR_MESSAGE := 'NO OF TONS IS REQUIRED.';
+        
+    -- Validate NET AMOUNT
+    ELSIF :P87_NET_AMOUNT IS NULL THEN
+        :P87_ERROR_MESSAGE := 'NET AMOUNT IS REQUIRED.';
+        
+    -- Validate ITEM ID
+    ELSIF :P87_ITEM_ID IS NULL THEN
+        :P87_ERROR_MESSAGE := 'ITEM ID IS REQUIRED.';
+        
+    -- Validate START DATE
+    ELSIF :P87_START_DATE IS NULL THEN
+        :P87_ERROR_MESSAGE := 'START DATE IS REQUIRED.';
+        
+    -- Validate END DATE
+    ELSIF :P87_END_DATE IS NULL THEN
+        :P87_ERROR_MESSAGE := 'END DATE IS REQUIRED.';
+        
+    -- Check if END DATE is earlier than START DATE
+    ELSIF :P87_END_DATE < :P87_START_DATE THEN
+        :P87_ERROR_MESSAGE := 'END DATE cannot be earlier than START DATE.';
+    
+    -- No errors, clear error message
+    ELSE
+        :P87_ERROR_MESSAGE := NULL;
+    END IF;
+END;
