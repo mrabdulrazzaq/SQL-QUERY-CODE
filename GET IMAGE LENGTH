@@ -1,0 +1,6 @@
+create or replace FUNCTION GET_IMAGE_LENGTH(image_blob BLOB) RETURN NUMBER IS
+    image_length NUMBER;
+BEGIN
+    image_length := DBMS_LOB.getlength(image_blob);
+    RETURN image_length;
+END GET_IMAGE_LENGTH;
