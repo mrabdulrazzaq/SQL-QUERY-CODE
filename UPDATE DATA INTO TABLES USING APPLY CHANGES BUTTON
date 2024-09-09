@@ -1,0 +1,57 @@
+DECLARE 
+       V_ID NUMBER;
+       V_SEQ NUMBER;
+BEGIN
+         SELECT NVL(COUNT(*),0) INTO V_ID FROM AB_SETUP_POLICY_REGISTERED 
+          WHERE POLICY_ID = :P87_DEAL_ID
+            AND STATUS='Y';
+         SELECT NVL(NVL(COUNT(*),0) +1,1) INTO   V_SEQ    FROM AB_USER_ACTION_LOG WHERE TRACE_ID=:P87_DEAL_ID;
+
+    IF V_ID <>0 THEN 
+    UPDATE AB_SETUP_POLICY_REGISTERED SPR
+    SET 
+           STATUS='N'  
+    WHERE
+        POLICY_ID = :P87_DEAL_ID;
+END IF;
+    COMMIT;
+     -----------------------------------------------------------------------------------
+INSERT INTO 
+        AB_USER_ACTION_LOG (
+                            TRACE_ID,
+                            TRACE_SEQUENCE,
+                            TRACE_TYPE,
+                            SUPPLIER_ID,
+                            ITEM_ID,
+                            NO_TONS,
+                            NO_BAGS,
+                            RATE,
+                            TOTAL_AMOUNT,
+                            REMARKS,
+                            PAYMENT_MODE,
+                            ITEM_EFFECTIVE_SD,
+                            ITEM_EFFECTIVE_ED,
+                            TRACE_STATUS,
+                            TRACE_REMARKS
+                ) 
+             VALUES (
+                    :P87_DEAL_ID,
+                    V_SEQ,
+                    'ACUTAL PRODUCT', 
+                    :P87_SUPPLIER_ID,           
+                    :P87_ITEM_ID,  
+                    :P87_NO_TONS,        
+                    :P87_NO_BAGS,             
+                    :P87_RATE, 
+                    :P87_NET_AMOUNT, 
+                    :P87_REMARKS,
+                    :P87_PAYMENT_MODE, 
+                    :P87_ITEM_EFFECTIVE_SD,
+                    :P87_ITEM_EFFECTIVE_ED,
+                    'Y',
+                    :P87_CHANGE_REMARKS);
+               
+     -----------------------------------------------------------------------------------
+EXCEPTION WHEN OTHERS THEN NULL;
+COMMIT;
+END;
