@@ -42,3 +42,56 @@ BEGIN
 
    RETURN v_result || ' Only';
 END amount_to_words;
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+create or replace FUNCTION amount_to_words(p_amount IN NUMBER)
+RETURN VARCHAR2
+IS
+   -- Arrays to store words for numbers
+   TYPE t_words IS TABLE OF VARCHAR2(255);
+   v_units t_words := t_words('Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine');
+   v_teens t_words := t_words('Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen');
+   v_tens t_words := t_words('Ten', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety');
+   
+   v_result      VARCHAR2(4000);
+   v_hundreds    NUMBER;
+   v_tens_digit  NUMBER;
+   v_units_digit NUMBER;
+   v_amount      NUMBER := FLOOR(p_amount); -- Assuming the input is a whole number
+BEGIN
+   -- Handle hundreds place
+   v_hundreds := FLOOR(v_amount / 100);
+   IF v_hundreds > 0 THEN
+      v_result := v_units(v_hundreds + 1) || ' Hundred ';
+   END IF;
+
+   -- Handle tens and units place
+   v_amount := MOD(v_amount, 100); -- Get the last two digits
+   IF v_amount BETWEEN 11 AND 19 THEN
+      v_result := v_result || v_teens(v_amount - 10);
+   ELSE
+      v_tens_digit := FLOOR(v_amount / 10);
+      v_units_digit := MOD(v_amount, 10);
+
+      IF v_tens_digit > 0 THEN
+         v_result := v_result || v_tens(v_tens_digit);
+      END IF;
+
+      IF v_units_digit > 0 THEN
+         v_result := v_result || ' ' || v_units(v_units_digit + 1);
+      END IF;
+   END IF;
+
+   IF v_result IS NULL THEN
+      v_result := 'Zero'; -- Handle case for 0 amount
+   END IF;
+
+   RETURN v_result || ' Only';
+END amount_to_words;
