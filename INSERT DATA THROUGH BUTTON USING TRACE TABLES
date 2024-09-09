@@ -1,0 +1,52 @@
+BEGIN
+    INSERT INTO 
+        AB_SETUP_POLICY_REGISTERED (
+        POLICY_IDS,
+        POLICY_TYPE,
+        SUPPLIER_ID,
+        ITEM_ID,
+        NO_TONS,
+        NO_BAGS,
+        RATE,
+        PAYMENT_MODE,
+        ITEM_EFFECTIVE_SD,
+        ITEM_EFFECTIVE_ED,
+        STATUS,
+        REMARKS,
+        NET_AMOUNT,
+        MODULE_NAME
+    ) 
+    VALUES (
+        :P87_POLICY_ID,
+        'ACTUAL PRODUCT',         
+        :P87_SUPPLIER_ID,                 
+        :P87_ITEM_ID,             
+        :P87_NO_TONS,             
+        :P87_NO_BAGS,             
+        :P87_RATE,                
+        :P87_PAYMENT_MODE,        
+        :P87_ITEM_EFFECTIVE_SD,
+        :P87_ITEM_EFFECTIVE_ED,  
+        'Y',             
+        :P87_REMARKS,             
+        :P87_NET_AMOUNT,
+        'PURCHASE'     
+    );
+
+    COMMIT; -- Optional: Commit the transaction if needed
+
+EXCEPTION
+    WHEN DUP_VAL_ON_INDEX THEN
+        -- Handle duplicate value exception
+        DBMS_OUTPUT.PUT_LINE('Duplicate value error. Please check your data.');
+    WHEN VALUE_ERROR THEN
+        -- Handle value errors, such as datatype mismatches
+        DBMS_OUTPUT.PUT_LINE('Value error. Please check your input values.');
+    WHEN OTHERS THEN
+        -- Handle any other exceptions
+        DBMS_OUTPUT.PUT_LINE('An unexpected error occurred: ' || SQLERRM);
+END;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+------------------------CLEAR ITEMS THROUGH BUTTONS -------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+P87_DEAL_ID,P87_RATE,P87_NET_AMOUNT:::::
