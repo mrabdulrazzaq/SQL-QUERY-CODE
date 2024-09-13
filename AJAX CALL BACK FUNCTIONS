@@ -1,0 +1,49 @@
+DECLARE
+        V_COMPANY_NAME           VARCHAR2(1000);
+        V_PURCHASING_TYPE        VARCHAR2(500);
+        V_COMPANY_ORDER_NO       VARCHAR2(500);
+        V_CO_DATE                VARCHAR2(500);
+        V_AGENCY_NAME            VARCHAR2(500);
+        V_ID number  := apex_application.g_x01;
+BEGIN
+    SELECT
+                MAX(CASE WHEN REG.REG_TYPE = 'COMPANY' AND REG.SR_ID = PO.COMPANY_ID THEN REG.REG_NAME END) AS COMPANY_NAME, 
+                PO.PURCHASING_TYPE,
+                PO.COMPANY_ORDER_NO,
+                TO_CHAR(PO.TRANSACTION_DATE, 'DD-MON-YYYY') AS CO_DATE---,
+                -- MAX(CASE WHEN REG.REG_TYPE = 'AGENCY' AND REG.SR_ID = PO.AGENCY_ID THEN REG.REG_NAME END) AS AGENCY_NAME,
+                -- NVL(MAX(CASE WHEN REG.REG_TYPE = 'SUPPLIER' AND REG.SR_ID = PO.VENDOR_ID THEN REG.PARTY_NAME END), 'N/A') AS VENDOR_NAME,
+                -- MAX(CASE WHEN LOOKUP_ID = '013M' THEN  LD.LOOKUP_DET_NAME END) AS LOADING_TYPE
+            INTO V_COMPANY_NAME,V_PURCHASING_TYPE,V_COMPANY_ORDER_NO,V_CO_DATE
+
+        FROM 
+                     AB_PO_PURCHASE_ORDER PO 
+           JOIN AB_LOOKUP_DETAIL LD ON LD.DET_ID IN (PO.LOADING_TYPE_ID, PO.FREIGHT_TYPE_ID, PO.PAYMENT_MODE_ID, PO.TRANSACTION_TYPE_ID)
+           JOIN AB_SETUP_REGISTRATION REG ON REG.SR_ID IN (PO.COMPANY_ID, PO.SALE_POINT_ID, PO.VENDOR_ID, PO.AGENCY_ID, PO.BANK_NAME_ID)
+WHERE 
+                PO.PO_ID = V_ID
+GROUP BY
+               PO.PURCHASING_TYPE,
+               PO.COMPANY_ORDER_NO,
+               PO.TRANSACTION_DATE;          
+
+    apex_json.open_object;
+    apex_json.write('success'            , TRUE);
+    apex_json.write('COMPANY_NAME'       ,V_COMPANY_NAME);
+    apex_json.write('PURCHASING_TYPE'    ,V_PURCHASING_TYPE);
+    apex_json.write('COMPANY_ORDER_NO'   ,V_COMPANY_ORDER_NO);
+    apex_json.write('CO_DATE'            ,V_CO_DATE);
+    -- apex_json.write('UNIT'          ,V_UNIT);
+    -- apex_json.write('PACKING'  ,V_PACKING);
+    -- apex_json.write('NO_TONS'  ,V_NO_TONS);
+    -- apex_json.write('NO_BAGS'  ,V_NO_BAGS);
+    -- apex_json.write('TONS'  ,V_TONS);
+    apex_json.close_object;
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        apex_json.open_object;
+        apex_json.write('success', FALSE);
+        apex_json.write('err_msg', SQLERRM);
+        apex_json.close_object;
+END;
