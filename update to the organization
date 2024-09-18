@@ -1,0 +1,28 @@
+DECLARE 
+    V_COUNT NUMBER;
+BEGIN
+    ----------------------- Single organization update --------------------------
+    UPDATE AB_UM_APP_USER_ORG
+    SET ORG_ID = :P7_ORG_ID,
+        STATUS = 'Y'
+    WHERE USER_ID = :P7_USER_ID;
+
+    ---------------------------- Single group update ----------------------------
+    UPDATE AB_UM_USER_GROUP_DET
+    SET GROUP_ID = :P7_GROUP_ID,
+        APPLICATION_ID = :P7_APPLICATION_ID,
+        STATUS = 'Y',
+        DEPT_ID = :P7_DEPT_ID
+    WHERE USER_ID = :P7_USER_ID;
+
+    ---------------------------- Single user name update ----------------------------
+    UPDATE AB_UM_APPLICATION_USERS
+    SET USER_NAME = :P7_USER_NAME,
+        STATUS = 'Y'
+    WHERE USER_ID = :P7_USER_ID;
+    
+    COMMIT;
+EXCEPTION 
+    WHEN OTHERS THEN 
+        ROLLBACK;
+END;
