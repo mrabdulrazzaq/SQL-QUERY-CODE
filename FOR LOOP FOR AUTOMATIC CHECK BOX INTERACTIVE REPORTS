@@ -1,0 +1,55 @@
+DECLARE
+    v_sql  CLOB;
+    v_day  VARCHAR2(10);
+    v_last_day NUMBER;
+BEGIN
+    -- Base SQL query
+    v_sql := 'SELECT SI.EMP_ID,
+                     SI.SALE_ID,
+                     AR.FIRST_NAME || ''-'' || AR.LAST_NAME AS SALE_OFFICER,
+                     MAX(CASE WHEN SR.REG_TYPE = ''CUSTOMER REGISTRATION'' AND SR.SR_ID = SI.SUPPLIER_ID THEN SR.REG_NAME END) AS PARTY_NAME,
+                     TO_CHAR(ASI.CUSTOMER_DEAL_DATE, ''DD-MON-YYYY'') AS CUSTOMER_DEAL_DATE, 
+                     LD.LOOKUP_DET_NAME AS FREIGHT_TYPE,
+                     SI.AREA,
+                     ASI.SALE_OFFICER_REMARKS,
+                     ASI.SALE_IDS,
+                     MAX(CASE WHEN ASI.SALE_OFFICER_REMARKS IS NULL THEN ''OPEN CALL'' ELSE NULL END) AS CALL_CUSTOMERS_ICON,
+                     CASE WHEN ASI.SALE_OFFICER_REMARKS IS NOT NULL THEN ''<i class="fa fa-check-square" style="color:green;"></i>'' ELSE NULL END AS CONTACTED';
+
+    -- Get the number of days in the current month
+    v_last_day := TO_NUMBER(TO_CHAR(LAST_DAY(SYSDATE), 'DD'));
+
+    -- Loop through each day of the current month to dynamically add a column
+    FOR i IN 1..v_last_day LOOP
+        -- Format the day as 'DD-MM-YYYY'
+        v_day := TO_CHAR(TRUNC(SYSDATE, 'MM') + (i - 1), 'DD-MM-YYYY');
+
+        -- Append the dynamically generated column to the SQL query
+        v_sql := v_sql || ', COALESCE(MAX(CASE WHEN ASI.SALE_OFFICER_REMARKS IS NOT NULL AND TO_CHAR(ASI.CUSTOMER_DEAL_DATE, ''DD-MM-YYYY'') = ''' || v_day || ''' THEN ''<i class="fa fa-check-square" style="color:green;"></<i>'' END), '''') AS "' || v_day || '"';
+    END LOOP;
+
+    -- Append the rest of the query
+    v_sql := v_sql || ' FROM AB_SALE_INFO SI
+                        JOIN AB_SETUP_REGISTRATION SR ON SR.SR_ID = SI.SUPPLIER_ID
+                        JOIN AB_EMPLOYEES_REGISTRATION AR ON AR.EMP_ID = SI.EMP_ID
+                        JOIN AB_LOOKUP_DETAIL LD ON LD.DET_ID = SI.FREIGHT_TYPE_ID
+                        LEFT JOIN AB_SALE_INFO ASI ON ASI.SALE_IDS = SI.SALE_ID
+                        WHERE LD.LOOKUP_ID = 022
+                          AND SI.EMP_ID = :P140_SALE_OFFICER
+                        GROUP BY 
+                            SI.SALE_ID,
+                            ASI.SALE_IDS,
+                            ASI.SALE_OFFICER_REMARKS,
+                            AR.FIRST_NAME, 
+                            AR.LAST_NAME,
+                            SI.SUPPLIER_ID,
+                            SI.FREIGHT_TYPE_ID,
+                            SI.AREA,
+                            SI.EMP_ID,
+                            LD.LOOKUP_DET_NAME,
+                            ASI.CUSTOMER_DEAL_DATE
+                        ORDER BY SI.SALE_ID';
+
+    -- Return the dynamically built SQL query
+    RETURN v_sql;
+END;
