@@ -1,0 +1,220 @@
+begin
+htp.p('<!DOCTYPE html>
+<html>
+<head>
+  <title>My HTML Report</title>
+  <style>
+    /* CSS styles for your report */
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    .report-container {
+      max-width: 85%;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .header-line {
+      border-bottom: 1px solid #333;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+    .logo {
+      width: 250px; /* Adjust the width as needed */
+      height: 100px;
+      padding-right: 5%;
+      padding-left: 1%;
+    }
+    .company-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .company-name {
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .instructions {
+      text-align: center;
+      font-size: 15px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #333;
+      padding: 8px;
+      font-size: 11px;
+      text-align: center;
+
+    }
+  </style>
+</head>
+<body>
+  <div class="report-container">
+    <div class="header">
+      <img class="logo" src="#APP_FILES#Capture.JPG" alt="Company Logo">
+      <div class="company-info">
+        <div class="company-name">GALAXY WORLDWIDE SHIPPING LLC</div>
+        <div class="instructions">Ind Area#4 P.O Box 83126 Sharjah, UAE. <strong>Email:</strong> info@gwshopping.com</div>
+        <div class="instructions">We offer American, Canadian, Korean auctions as well as other shipping services from Asian & European ports</div>
+      </div>
+    </div>
+    <div class="header-line"></div>
+
+    <!-- Table --> ');
+for y in (select  
+          ih.F_NAME,
+          ih.CUSTOMER_ID,
+       ( SELECT (SUM(TOTAL_AMOUNT) - SUM(ALREADY_PAID_AMOUNT)) - SUM(PAYABLE_PAID) - SUM(ADVANCE_AMT)  AS result
+FROM GALAXY_BILLING_RECEIPTS br where br.CUSTOMER_ID=ih.CUSTOMER_ID) remaining_amount
+ 
+from      GALAXY_INVOICE_HGEADER ih
+--left join GALAXY_BILLING_RECEIPTS br on br.INVOICE_BILL_NO=ih.inv_no
+WHERE  
+     ih.CUSTOMER_ID=:P24_CUSTOMER_ID
+     group by ih.F_NAME,ih.CUSTOMER_ID--,PAYABLE_AMT,remaining_amount
+     )
+loop
+
+    htp.p('<table>
+      <tr>
+        <td colspan="8" style="border: none; text-align: left;"><b>TO</b></td>
+        <td><b>DATE</b></td>
+        <td colspan="2" style="text-align: center;">6/12/2023</td>
+      </tr>
+      <tr>
+        <td colspan="5" style="border: none; text-align: center;"><b>'|| (y.F_NAME)||'</b></td>
+        <td colspan="3" style="border: none; text-align: center; border-bottom: 1px solid black;">STATEMENT OF UNPAID VEHICLE</td>
+        <td rowspan="2"><b>TOTAL DUE</b></td>
+        <td rowspan="2" colspan="2" style="text-align: right;">'|| (y.remaining_amount)||'</td>
+      </tr>
+      <tr>
+        <td colspan="8" style="border: none; text-align: left;">CUSTOMER ID#</td>
+
+      </tr>
+      </table> ');
+end loop;
+------------------------------------------------
+ htp.p('<table>
+      <tr>
+        <th>Invoice</th>
+        <th>Recepit No</th>
+        <th>Invoice Type</th>
+        <th>PURCHASE</th>
+        <th>YEAR</th>
+        <th>MAKE</th>
+        <th>lOT NO</th>
+        <th>VIN#</th>
+        <th>COLOR</th>
+        <th>Received Applied</th>
+        <th>Vehicle Amount</th>
+        <th>Paid Amount</th>
+        <th>Due Amount</th>
+      </tr> ');
+for y in (select  
+          to_char(hi.INV_NO) INV_NO,
+          null RECEIPT_NO,
+          'Invoice Amount' Type ,
+          st. PURCHASE_DATE,
+          hl.MODEL,
+          hl. MAKE,
+          hl.LOT_NO,
+          hl.VIN,
+          st.color,
+          VEHICLE_VALUE,
+          PAID_AMOUNT,
+    nvl(VEHICLE_VALUE - PAID_AMOUNT,0 ) due_amount
+from      GALAXY_INVOICE_HGEADER hi
+join GALAXY_INVOICE_ITEM hl on hl.HEAD_ID=hi.ID
+join GALAXY_LOT_SETUP st on st.lot_no=hl.lot_no
+WHERE  
+     hi.CUSTOMER_ID=:P24_CUSTOMER_ID
+union all
+select 
+        to_char(br.INV_NO) INV_NO, 
+        null RECEIPT_NO,
+        'Advance Amount' Type ,
+      null PURCHASE_DATE,
+       null MODEL,
+       null MAKE,
+       null LOT_NO,
+       null VIN,
+       null color,
+       null VEHICLE_VALUE,
+       ADVANCE_AMOUNT    PAID_AMOUNT,
+        null due_amount
+from GALAXY_PATIENT_ADVANCE BR
+WHERE CUSTOMER_ID=:P24_CUSTOMER_ID
+     union all
+     select 
+       to_char(INVOICE_BILL_NO) INV_NO,
+       RECEIPT_NO,
+       'Add Receipt' Type ,
+       (select max(PURCHASE_DATE)   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) PURCHASE_DATE,
+       (select max(to_char(MODEL))   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) MODEL,
+       (select max(MAKE)   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) MAKE,
+       (select max(LOT_NO)   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) LOT_NO,
+       (select max(VIN)   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) VIN,
+        (select max(color)   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) color,
+        (select max(VEHICLE_VALUE)   from GALAXY_REGISTERED_CARD  rc where rc.CUSTOMER_ID=br.CUSTOMER_ID) VEHICLE_VALUE,
+        PAYABLE_PAID PAID_AMOUNT,
+        null due_amount
+from       
+     GALAXY_BILLING_RECEIPTS br
+---join GALAXY_REGISTERED_CARD rc on rc.CUSTOMER_ID=br.CUSTOMER_ID
+where  br.CUSTOMER_ID=:P24_CUSTOMER_ID
+   
+  )
+loop
+
+    
+      htp.p('<!-- Add table rows here-->
+      <tr>
+        <td>'|| (y.INV_NO)||'</td>
+         <td>'|| (y.RECEIPT_NO)||'</td>
+         <td>'|| (y.Type)||'</td>
+        <td>'|| (y.PURCHASE_DATE)||'</td>
+        <td>'|| (y.MODEL)||'</td>
+        <td>'|| (y.MAKE)||'</td>
+        <td>'|| (y.LOT_NO)||'</td>
+        <td>'|| (y.VIN)||'</td>
+        <td>'|| (y.color)||'</td>
+        <td></td>
+        <td style="text-align: right; ">'|| (y.VEHICLE_VALUE)||'</td>
+        <td>'|| (y.PAID_AMOUNT)||'</td>
+        <td style="text-align: right;">'|| (y.due_amount)||'</td>
+      </tr>');
+      end loop;
+      for y in (select (SUM(TOTAL_AMOUNT) - SUM(ALREADY_PAID_AMOUNT)) - SUM(PAYABLE_PAID) - SUM(ADVANCE_AMT)  AS result
+from       
+     GALAXY_BILLING_RECEIPTS br
+---join GALAXY_REGISTERED_CARD rc on rc.CUSTOMER_ID=br.CUSTOMER_ID
+where  br.CUSTOMER_ID=:P24_CUSTOMER_ID) 
+loop
+      htp.p('<tr>
+        <td colspan="9" style="border: none; "></td>
+        <td colspan="3"><b>Total Amount</b></td>
+        <td style="text-align: right;">42000</td>
+      </tr>
+      <tr>
+        <td colspan="9" style="border: none; "></td>
+        <td colspan="3"><b>Final Net Due</b></td>
+        <td style="text-align: right;">'|| (y.result)||'</td>
+      </tr>');
+      end loop;
+      
+        
+    htp.p('</table>
+    
+
+  </div>
+</body>
+</html> ');
+
+end;
