@@ -1,0 +1,183 @@
+
+WITH PURCHASE_ORDER AS  (
+
+SELECT ITM.ITEM_ID , 
+       ITM.ITEM_NAME ,
+       SUM(POD.CHANGE_BAGS) AS CHANGE_BAGS
+          FROM AB_ITEMS_MASTER ITM
+          JOIN AB_PO_DEMAND_REQ_DET DRD ON DRD.ITEM_ID = ITM.ITEM_ID
+          JOIN AB_PO_PURCHASE_ORDER_DET POD ON  POD.DEMAND_DET_ID = DRD.DET_ID
+          WHERE ITM.ITEM_ID = 198
+          AND POD.DET_TYPE = 'PURCHASE ORDER DET' 
+          AND POD.ORG_ID = :GV_ORG_ID
+          GROUP BY
+          ITM.ITEM_ID , 
+       ITM.ITEM_NAME 
+         )
+   ,  PURCHASE_INVOICE AS (    
+
+SELECT 
+    ITM.ITEM_ID,
+    ITM.ITEM_NAME,
+   -- PO.CHANGE_BAGS ,
+    SUM(PO.CHANGE_BAGS) AS INVOICE_BAGS 
+FROM            AB_ITEMS_MASTER ITM
+              JOIN   AB_PO_DEMAND_REQ_DET DRD ON DRD.ITEM_ID=ITM.ITEM_ID
+              JOIN   AB_PO_PURCHASE_ORDER_DET  POD ON POD.DEMAND_DET_ID=DRD.DET_ID
+              JOIN   AB_PO_PURCHASE_ORDER PO ON PO.PO_ID = POD.PO_ID
+
+JOIN 
+    AB_PO_PURCHASE_ORDER_DET PO ON PO.IDS = POD.DET_ID
+WHERE 
+    PO.DET_TYPE = 'PURCHASE INVOICE DET' 
+--    AND  ITM.ITEM_ID = 198
+   AND POD.ORG_ID = :GV_ORG_ID
+GROUP BY 
+  ITM.ITEM_ID,
+  ITM.ITEM_NAME
+  
+                             
+     )    
+
+ , LOGISTICS_DATA AS  (
+                             
+
+SELECT 
+    ITM.ITEM_ID,
+    ITM.ITEM_NAME,
+    SUM(PO.CHANGE_BAGS) AS GRN_BAGS
+FROM            AB_ITEMS_MASTER ITM
+              JOIN   AB_PO_DEMAND_REQ_DET DRD ON DRD.ITEM_ID=ITM.ITEM_ID
+              JOIN   AB_PO_PURCHASE_ORDER_DET  POD ON POD.DEMAND_DET_ID=DRD.DET_ID
+              JOIN  AB_PO_PURCHASE_ORDER_DET PO ON PO.IDS = POD.DET_ID
+              JOIN   AB_PO_PURCHASE_ORDER PO ON PO.PO_ID = POD.PO_ID
+              JOIN   AB_LOGISTICS_INFO LO ON LO.INOVICE_NO = PO.PO_ID
+              JOIN   AB_LOGISTICS_INFO FRE ON FRE.LO_IDS=LO.LO_ID
+              JOIN   AB_LOGISTICS_INFO GRN ON GRN.LO_IDS = LO.LO_ID
+
+WHERE 
+    PO.DET_TYPE = 'PURCHASE INVOICE DET' 
+    AND PO.ORG_ID = :GV_ORG_ID
+--    AND  ITM.ITEM_ID = 198
+GROUP BY 
+  ITM.ITEM_ID,
+  ITM.ITEM_NAME
+                                     
+                                       
+                                     
+     ), AMANAT_BAGS AS  (
+
+                           SELECT     ITM.ITEM_ID,
+           ITM.ITEM_NAME,
+           SUM(POD.CHANGE_BAGS) AS AMANAT_BAGS
+            FROM 
+                      AB_ITEMS_MASTER ITM 
+                    JOIN AB_PO_PURCHASE_ORDER_DET POD ON POD.ITEM_ID = ITM.ITEM_ID
+                    JOIN AB_PO_PURCHASE_ORDER PO ON PO.PO_ID = POD.PO_ID
+                    
+                    WHERE ITM.ITEM_ID = 198
+                   AND PO.PO_TYPE = 'PO AMANAT'
+                   AND   PO.ORG_ID=:GV_ORG_ID
+                  GROUP BY 
+                       ITM.ITEM_ID,
+                        ITM.ITEM_NAME
+
+
+
+     ), GRN_DATA AS  (
+
+
+SELECT 
+    ITM.ITEM_ID,
+    ITM.ITEM_NAME,
+    SUM(PO.CHANGE_BAGS) AS GRN_BAGS
+FROM            AB_ITEMS_MASTER ITM
+              JOIN   AB_PO_DEMAND_REQ_DET DRD ON DRD.ITEM_ID=ITM.ITEM_ID
+              JOIN   AB_PO_PURCHASE_ORDER_DET  POD ON POD.DEMAND_DET_ID=DRD.DET_ID
+              JOIN  AB_PO_PURCHASE_ORDER_DET PO ON PO.IDS = POD.DET_ID
+              JOIN   AB_PO_PURCHASE_ORDER PO ON PO.PO_ID = POD.PO_ID
+              JOIN   AB_LOGISTICS_INFO LO ON LO.INOVICE_NO = PO.PO_ID
+              JOIN   AB_LOGISTICS_INFO FRE ON FRE.LO_IDS=LO.LO_ID
+             LEFT JOIN   AB_LOGISTICS_INFO GRN ON GRN.LO_IDS = LO.LO_ID
+
+WHERE 
+    PO.DET_TYPE = 'PURCHASE INVOICE DET'
+--    AND  ITM.ITEM_ID = 198
+GROUP BY 
+  ITM.ITEM_ID,
+  ITM.ITEM_NAME
+              
+
+     )
+
+    
+SELECT     ITM.ITEM_ID,
+           ITM.ITEM_NAME,
+           PR.CHANGE_BAGS,
+           INVOICE_BAGS,
+           AMANAT_BAGS,
+           GR.GRN_BAGS,
+            NVL(PR.CHANGE_BAGS,0) + NVL(AMANAT_BAGS, 0) -NVL(INVOICE_BAGS, 0) AS TOTAL_STOCK
+
+           
+            FROM 
+                      AB_ITEMS_MASTER ITM 
+                    JOIN AB_PO_PURCHASE_ORDER_DET POD ON POD.ITEM_ID = ITM.ITEM_ID
+                    JOIN AB_PO_PURCHASE_ORDER PO ON PO.PO_ID = POD.PO_ID
+                    LEFT JOIN PURCHASE_ORDER PR ON PR.ITEM_ID = ITM.ITEM_ID
+                    LEFT JOIN PURCHASE_INVOICE PI ON PI.ITEM_ID = ITM.ITEM_ID
+                    LEFT JOIN  LOGISTICS_DATA LD ON LD.ITEM_ID = ITM.ITEM_ID
+                    LEFT JOIN  AMANAT_BAGS AB ON AB.ITEM_ID =  ITM.ITEM_ID 
+                    LEFT JOIN  GRN_DATA GR ON GR.ITEM_ID =  ITM.ITEM_ID
+
+                    
+                    
+                    WHERE 
+                    ---ITM.ITEM_ID = 198
+                     PO.ORG_ID=:GV_ORG_ID
+                  GROUP BY 
+                       ITM.ITEM_ID,
+                        ITM.ITEM_NAME,
+                        PR.CHANGE_BAGS,
+                        INVOICE_BAGS,
+                        AMANAT_BAGS,
+                        GR.GRN_BAGS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- SELECT 
+--     ITM.ITEM_ID,
+--     ITM.ITEM_NAME,
+--     SUM(PO.CHANGE_BAGS) AS GRN_BAGS
+-- FROM            AB_ITEMS_MASTER ITM
+--               JOIN   AB_PO_DEMAND_REQ_DET DRD ON DRD.ITEM_ID=ITM.ITEM_ID
+--               JOIN   AB_PO_PURCHASE_ORDER_DET  POD ON POD.DEMAND_DET_ID=DRD.DET_ID
+--               JOIN  AB_PO_PURCHASE_ORDER_DET PO ON PO.IDS = POD.DET_ID
+--               JOIN   AB_PO_PURCHASE_ORDER PO ON PO.PO_ID = POD.PO_ID
+--               JOIN   AB_LOGISTICS_INFO LO ON LO.INOVICE_NO = PO.PO_ID
+--               JOIN   AB_LOGISTICS_INFO FRE ON FRE.LO_IDS=LO.LO_ID
+--              LEFT JOIN   AB_LOGISTICS_INFO GRN ON GRN.LO_IDS = LO.LO_ID
+
+-- WHERE 
+--     PO.DET_TYPE = 'PURCHASE INVOICE DET'
+--    AND  ITM.ITEM_ID = 198
+-- GROUP BY 
+--   ITM.ITEM_ID,
+--   ITM.ITEM_NAME
+              
+
+
