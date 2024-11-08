@@ -1,0 +1,19 @@
+---------------------------------------USER ACCESS TABLES ----------------------------------------------
+declare
+v_num number;
+v_return boolean;
+begin
+           SELECT
+                    COUNT(USER_ID)  USER_ID INTO v_num
+        FROM
+         AB_UM_APPLICATION_USERS
+         WHERE
+                    USER_ID IN (42,40,47,44)
+          AND  USER_ID=:GV_USER_ID
+          AND STATUS='Y';
+    if v_num = 1 then 
+        return true;
+    else 
+        return false;
+    end if;
+end;
