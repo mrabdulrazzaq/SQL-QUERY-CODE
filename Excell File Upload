@@ -1,0 +1,89 @@
+////////EXCELL  FILE INSERTIONS PROCESSS CODE //////////////////////////////
+DECLARE
+    vId NUMBER;
+    vMasterBankId NUMBER;
+    vDetailInserted BOOLEAN := FALSE; -- Flag to check if any details were inserted
+BEGIN
+    -- Ensure the collection exists
+    IF NOT APEX_COLLECTION.COLLECTION_EXISTS('XL') THEN
+        APEX_COLLECTION.CREATE_COLLECTION('XL');
+    END IF;
+
+    -- Process the report rows
+    IF apex_application.g_f01.count > 0 THEN
+        FOR i IN 1..apex_application.g_f01.count LOOP
+            vId := TO_NUMBER(NVL(apex_application.g_f01(i), 0));
+
+            -- Cursor to fetch data from the collection
+            DECLARE
+                CURSOR C1 IS 
+                    SELECT 
+                       --- NVL(NULLIF(TRIM(C001), :P391_COMPANY_BANK_ID), :P391_COMPANY_BANK_ID) TRANSACTION_NO,
+                        NVL(C001,:P391_COMPANY_BANK_ID)TRANSACTION_NO,
+                        --NVL(NULLIF(TRIM(C001), ''), NULL) TRANSACTION_NO, -- Default to 'NULL' if blank
+                        NVL(NULLIF(TRIM(C002), ''), NULL) NARRATION, -- Default to 'NULL' if blank
+                        NVL(NULLIF(TRIM(C003), ''), '0') AMOUNT, -- Default to '0' if blank
+                        SEQ_ID
+                    FROM 
+                        APEX_COLLECTIONS
+                    WHERE 
+                        COLLECTION_NAME = 'XL' 
+                    AND SEQ_ID = vId;
+                
+                vExists NUMBER; -- Variable to check if record exists
+            BEGIN
+                FOR REC_C1 IN C1 LOOP
+                    -- Check if a row with the same TRANSACTION_NO, NARRATION, and AMOUNT already exists
+                    SELECT COUNT(*)
+                    INTO vExists
+                    FROM AB_BANK_TRANSACTION
+                    WHERE TRANSACTION_NUMBER = NVL(REC_C1.TRANSACTION_NO,:P205_COMPANY_BANK_ID)
+                      AND NVL(NARRATION, NULL) = REC_C1.NARRATION
+                      AND NVL(AMOUNT, '0') = REC_C1.AMOUNT;
+
+                    -- Insert only if the record does not already exist
+                    IF vExists = 0 THEN
+                        -- Insert master entry only once
+                        IF vMasterBankId IS NULL THEN
+                            INSERT INTO AB_BANK_TRANSACTION 
+                            (COMPANY_BANK_ID, STATUS, TRANS_TYPE, TRANSACTION_DATE, MODE_TYPE)
+                            VALUES 
+                            (:P205_COMPANY_BANK_ID, 'Y', 'TRANSACTION HEAD', TO_DATE(:P205_TRANSACTION_DATE, 'DD-MON-YYYY HH24:MI:SS'), :P205_MODE_TYPE)
+                            RETURNING BANK_ID INTO vMasterBankId;
+                        END IF;
+
+                        -- Insert detail entry
+                        INSERT INTO AB_BANK_TRANSACTION 
+                        (IDS, TRANSACTION_NUMBER, NARRATION, AMOUNT, CREATED_ON, CREATED_BY, STATUS, TRANS_TYPE)
+                        VALUES 
+                        (vMasterBankId, 
+                         NVL(CASE WHEN REC_C1.TRANSACTION_NO = NULL THEN :P205_COMPANY_BANK_ID ELSE REC_C1.TRANSACTION_NO END,:P205_COMPANY_BANK_ID) ,
+                         CASE WHEN REC_C1.NARRATION = 'NULL' THEN NULL ELSE REC_C1.NARRATION END, 
+                         REC_C1.AMOUNT, 
+                         SYSDATE, :APP_USER, 'Y', 'TRANSACTION DET');
+                        
+                        -- Mark that at least one detail row was inserted
+                        vDetailInserted := TRUE;
+                    ELSE
+                        -- Log skipped rows if needed
+                        DBMS_OUTPUT.PUT_LINE('Duplicate detail skipped: ' || REC_C1.TRANSACTION_NO);
+                    END IF;
+                END LOOP;
+            END;
+        END LOOP;
+
+        -- If no details were inserted, delete the master entry and raise an error
+        IF NOT vDetailInserted THEN
+            DELETE FROM AB_BANK_TRANSACTION WHERE BANK_ID = vMasterBankId;
+            RAISE_APPLICATION_ERROR(-20001, 'All details are duplicates. No data was inserted.');
+        END IF;
+    ELSE
+        -- No rows selected
+        RAISE_APPLICATION_ERROR(-20002, 'No rows selected for processing.');
+    END IF;
+
+    -- Clear the collection after processing
+    IF APEX_COLLECTION.COLLECTION_EXISTS('XL') THEN
+        APEX_COLLECTION.TRUNCATE_COLLECTION(P_COLLECTION_NAME => 'XL');
+    END IF;
+END;
