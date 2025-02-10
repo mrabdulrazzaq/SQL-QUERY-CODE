@@ -1,0 +1,21 @@
+=====================================menue visible code for user access pages =====================================
+
+
+declare
+v_num number;
+v_return boolean;
+begin
+           SELECT
+                    COUNT(USER_ID)  USER_ID INTO v_num
+        FROM
+         AB_UM_APPLICATION_USERS
+         WHERE
+                    USER_ID IN (40,42,93,47,44)   ===========users ids that are restricted===================
+          AND  USER_ID=:GV_USER_ID
+          AND STATUS='Y';
+    if v_num = 1 then 
+        return true;
+    else 
+        return false;
+    end if;
+end;
