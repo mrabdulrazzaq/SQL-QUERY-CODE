@@ -1,0 +1,20 @@
+====================================ERORR MESSAGES ===============================
+BEGIN
+    IF :P143_SUPPLIER_ID IS NULL THEN
+        :P143_ERROR_MESSAGE := 'Supplier is required.';    
+    ELSIF NVL(:P143_AGENCY_ID_GET,:P143_AGENCY_ID) IS NULL THEN
+        :P143_ERROR_MESSAGE := 'Agency is required.';
+    ELSIF :P143_PAYMENT_MODE IS NULL THEN
+        :P143_ERROR_MESSAGE := 'Payment mode is required.';
+    ELSIF :P143_ITEM_ID IS NULL THEN
+        :P143_ERROR_MESSAGE := 'Item is required.';
+    ELSIF :P143_NO_TONS IS NULL THEN
+        :P143_ERROR_MESSAGE := 'No tons is required.';
+    ELSIF :P143_RATE IS NULL THEN
+        :P143_ERROR_MESSAGE := 'Rate is required.';
+    ELSIF :P143_MARKET_RATE IS NULL THEN
+        :P143_ERROR_MESSAGE := 'Market rate is required.';
+    ELSE
+        :P143_ERROR_MESSAGE := NULL; -- Clear error message if all validations pass
+    END IF;
+END;
