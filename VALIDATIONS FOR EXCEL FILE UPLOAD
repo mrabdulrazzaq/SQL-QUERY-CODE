@@ -1,0 +1,15 @@
+===============================VALIDATIONS FOR EXCEL FILE UPLOAD=====================
+
+DECLARE
+    v_documents_type VARCHAR2(200);
+BEGIN
+    -- Extract the file extension from the uploaded file
+    v_documents_type := LOWER(SUBSTR(:P205_FILE_BROWSE, INSTR(:P205_FILE_BROWSE, '.', -1) + 1));
+    
+    -- Check if the file extension is one of the valid Excel file extensions
+    IF v_documents_type IN ('xls', 'xlsx', 'xlsm') THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END;
