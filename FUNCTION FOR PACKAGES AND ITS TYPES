@@ -1,0 +1,397 @@
+==============================================PURCHASE ORDER FUNCTIONS ================================================================
+
+
+
+FUNCTION PURCHASE_ORDER(P_ORG_ID NUMBER) 
+                RETURN PURCHASE_ORDER_TYPE PIPELINED IS
+                V_PURCHASE_ORDER   PURCHASE_ORDER_OBJECT;
+    BEGIN
+        FOR GS IN (
+            ----------------------------------------------------------------
+    WITH TAX_POLICY AS (
+                SELECT 
+                    POLICY_ID,
+                    FED,
+                    GST,
+                    AIT 
+                FROM
+                    AB_SETUP_POLICY_REGISTERED SPR
+                WHERE
+                    STATUS = 'Y'
+)
+,PO_AVAILABLE AS (
+    SELECT  
+            PO_DET_ID,
+            SUM(NVL(CHANGE_TONS, 0)) AS AVAILABLE_TONS,
+            SUM(NVL(CHANGE_BAGS, 0)) AS AVAILABLE_BAGS
+    FROM 
+            AB_USER_ACTION_APPROVAL
+    WHERE  
+                     ORG_ID = P_ORG_ID
+            AND APPROVAL_STATUS = 'PURCHASE ORDER AVAILABLE'
+            AND APP_TYPE = 'PO AVAILABLE'
+            AND STATUS='Y'
+    GROUP BY 
+                PO_DET_ID, 
+                APP_TYPE, 
+                APPROVAL_STATUS
+)
+,PO_CANCELLED AS(
+    SELECT AU.PO_DET_ID,
+            SUM(NVL(AU.CHANGE_TONS, 0)) AS CANCEL_TONS,
+            SUM(NVL(AU.CHANGE_BAGS, 0)) AS CANCEL_BAGS
+    FROM 
+            AB_USER_ACTION_APPROVAL AU
+    WHERE  
+                 AU.ORG_ID = P_ORG_ID
+        AND AU.APPROVAL_STATUS = 'PURCHASE ORDER CANCELLED'
+        AND AU.APP_TYPE = 'PO CANCELLATION'
+        AND AU.STATUS='Y'
+    GROUP BY 
+            AU.PO_DET_ID, 
+            AU.APP_TYPE, 
+            AU.APPROVAL_STATUS)
+,SUB_PO AS (
+        SELECT
+                SBD.IDS SUB_ID,
+                SUM(CHANGE_TONS) SUB_TONS,
+                SUM(CHANGE_BAGS) SUB_BAGS
+        FROM   
+                        AB_PO_PURCHASE_ORDER SB
+            JOIN   AB_PO_PURCHASE_ORDER_DET SBD ON SBD.PO_ID=SB.PO_ID AND SBD.DET_TYPE='SUB PO DET' AND SBD.STATUS='Y'
+        WHERE   SB.PO_TYPE='SUB PO'
+        GROUP BY
+                SBD.IDS
+)
+,TOTAL_TAX_AMOUNT AS (
+                SELECT
+                                DET_ID,
+                                PO_ID,
+                                DEMAND_DET_ID,
+                                ADD_POLICY,
+                                REMARKS,
+                                CATERGORY_NAME,
+                                CATEGORY_ID,
+                                ITEM_ID,
+                                ITEM_NAME,
+                                PACKING_SIZE,
+                                NO_TONS,
+                                NO_BAGS,
+                                RATE,
+                                NET_AMOUNT,
+                                'Print' AS PRINT_REPORT,
+                                FED,
+                                ROUND(FED_VALUE) FED_VALUE,
+                                ROUND(AFTER_FED_VALUE) AFTER_FED_VALUE,
+                                GST,
+                                CASE 
+                                       WHEN GST IS NULL  THEN NULL ELSE ROUND(GST_VALUE) 
+                                END GST_VALUE,
+                                ROUND(AFTER_GST_VALUE) AFTER_GST_VALUE,
+                                AIT,
+                                CASE
+                                       WHEN AIT IS NULL THEN  NULL
+                                       ELSE ROUND(NVL(AFTER_GST_VALUE,0) * NVL(AIT,0)/100)END AIT_VALUE,
+                                 CASE
+                                        WHEN AIT IS NULL THEN     ROUND(AFTER_GST_VALUE,0)
+                                        ELSE   ROUND(NVL(AFTER_GST_VALUE,0) * NVL(AIT,0)/100)+ROUND(NVL(AFTER_GST_VALUE,0))
+                                END AFTER_AIT_VALUE,
+                                CASE
+                                        WHEN AIT IS NULL THEN     ROUND(AFTER_GST_VALUE,0)
+                                        ELSE   ROUND(NVL(AFTER_GST_VALUE,0) * NVL(AIT,0)/100)+ROUND(NVL(AFTER_GST_VALUE,0))
+                                END TOTAL_AMOUNT,
+                                TAX_POLICY_ID,
+                                DEAL_POLICY_ID
+                FROM (
+                SELECT
+                            POR.DET_ID,
+                            POR.PO_ID,
+                            POR.DEMAND_DET_ID,
+                            ITM.ITEM_ID,
+                            ITM.ITEM_NAME,
+                            ITM.ITEM_NAME||' ('|| ITM.PACKING_SIZE || ' '|| ITM.UNIT || ' '|| ITM.PACKING || ')' AS PACKING_SIZE,
+                            POR.CHANGE_TONS  NO_TONS,
+                            POR.CHANGE_BAGS   NO_BAGS,
+                            POR.RATE AS RATE,
+                            POR.NET_AMOUNT AS NET_AMOUNT,
+                            CASE WHEN POR.TAX_POLICY_ID IS NULL THEN 'ADD POLICY' ELSE NULL END AS ADD_POLICY,
+                            POR.REMARKS,
+                            LOOKUP_DET_NAME AS CATERGORY_NAME,
+                            LD.DET_ID AS CATEGORY_ID,
+                            FED ,
+                            CASE 
+                                WHEN FED IS NOT NULL THEN (FED * NVL(POR.NET_AMOUNT, 0) / 100)
+                                ELSE NULL
+                            END AS FED_VALUE,
+                            CASE
+                                   WHEN FED IS NULL THEN NVL(POR.NET_AMOUNT,0)  
+                                   ELSE  NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                            END AFTER_FED_VALUE,
+                            GST,
+                            CASE
+                                    WHEN FED IS NULL  THEN ((NVL(POR.NET_AMOUNT, 0) * NVL(GST,0) )/100) 
+                                    ELSE  ((NVL(POR.NET_AMOUNT, 0) + (FED * NVL(POR.NET_AMOUNT, 0) / 100)) * NVL(GST, 0) / 100)   
+                            END GST_VALUE,
+                            CASE 
+                                    WHEN GST IS NULL THEN NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                                    WHEN  FED IS NULL THEN ((NVL(POR.NET_AMOUNT, 0) * NVL(GST,0) )/100)  + NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                                    ELSE ((NVL(POR.NET_AMOUNT, 0) + (FED * NVL(POR.NET_AMOUNT, 0) / 100)) * NVL(GST, 0) / 100) +  NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                            END AFTER_GST_VALUE,
+                            AIT,
+                            POR.TAX_POLICY_ID,
+                            POR.DEAL_POLICY_ID
+                FROM 
+                                         AB_PO_DEMAND_REQ_DET DRD
+                          JOIN   AB_ITEMS_MASTER ITM ON ITM.ITEM_ID = DRD.ITEM_ID
+                          JOIN   AB_PO_PURCHASE_ORDER_DET POR ON POR.DEMAND_DET_ID = DRD.DET_ID
+                          JOIN   AB_LOOKUP_DETAIL LD ON LD.DET_ID = ITM.PRODUCT_CATEGORY_ID
+                LEFT  JOIN   TAX_POLICY TP ON TP.POLICY_ID = POR.TAX_POLICY_ID
+                 WHERE
+                                    POR.ORG_ID=P_ORG_ID
+                              AND POR.STATUS='Y'
+               UNION ALL
+               SELECT
+                            POR.DET_ID,
+                            POR.PO_ID,
+                            POR.DEMAND_DET_ID,
+                            ITM.ITEM_ID,
+                            ITM.ITEM_NAME,
+                            ITM.ITEM_NAME||' ('|| ITM.PACKING_SIZE || ' '|| ITM.UNIT || ' '|| ITM.PACKING || ')' AS PACKING_SIZE,
+                            POR.CHANGE_TONS NO_TONS,
+                            POR.CHANGE_BAGS NO_BAGS,
+                            POR.RATE AS RATE,
+                            POR.NET_AMOUNT AS NET_AMOUNT,
+                            CASE WHEN POR.TAX_POLICY_ID IS NULL THEN 'ADD POLICY' ELSE NULL END AS ADD_POLICY,
+                            POR.REMARKS,
+                            LOOKUP_DET_NAME AS CATERGORY_NAME,
+                            LD.DET_ID AS CATEGORY_ID,
+                            FED ,
+                            CASE 
+                                WHEN FED IS NOT NULL THEN (FED * NVL(POR.NET_AMOUNT, 0) / 100)
+                                ELSE NULL
+                            END AS FED_VALUE,
+                            CASE
+                                   WHEN FED IS NULL THEN NVL(POR.NET_AMOUNT,0)  
+                                   ELSE  NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                            END AFTER_FED_VALUE,
+                            GST,
+                            CASE
+                                    WHEN FED IS NULL  THEN ((NVL(POR.NET_AMOUNT, 0) * NVL(GST,0) )/100) 
+                                    ELSE  ((NVL(POR.NET_AMOUNT, 0) + (FED * NVL(POR.NET_AMOUNT, 0) / 100)) * NVL(GST, 0) / 100)   
+                            END GST_VALUE,
+                            CASE 
+                                    WHEN GST IS NULL THEN NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                                    WHEN  FED IS NULL THEN ((NVL(POR.NET_AMOUNT, 0) * NVL(GST,0) )/100)  + NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                                    ELSE ((NVL(POR.NET_AMOUNT, 0) + (FED * NVL(POR.NET_AMOUNT, 0) / 100)) * NVL(GST, 0) / 100) +  NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                            END AFTER_GST_VALUE,
+                            AIT,
+                            POR.TAX_POLICY_ID,
+                            POR.DEAL_POLICY_ID
+                FROM 
+                                         AB_PO_DEMAND_REQ_DET DRD
+                          JOIN   AB_ITEMS_MASTER ITM ON ITM.ITEM_ID = DRD.ITEM_ID
+                          JOIN   AB_PO_PURCHASE_ORDER_DET PORD ON PORD.DEMAND_DET_ID = DRD.DET_ID
+                          JOIN   AB_PO_PURCHASE_ORDER_DET POR ON POR.IDS = PORD.DET_ID
+                          JOIN   AB_LOOKUP_DETAIL LD ON LD.DET_ID = ITM.PRODUCT_CATEGORY_ID
+                LEFT  JOIN   TAX_POLICY TP ON TP.POLICY_ID = POR.TAX_POLICY_ID
+                 WHERE
+                                    POR.ORG_ID=P_ORG_ID
+                            AND POR.ITEM_ID IS NULL
+                            AND POR.STATUS='Y'
+               UNION
+               SELECT
+                            POR.DET_ID,
+                            POR.PO_ID,
+                            POR.DEMAND_DET_ID,
+                            ITM.ITEM_ID,
+                            ITM.ITEM_NAME,
+                            ITM.ITEM_NAME||' ('|| ITM.PACKING_SIZE || ' '|| ITM.UNIT || ' '|| ITM.PACKING || ')' AS PACKING_SIZE,
+                            POR.CHANGE_TONS NO_TONS,
+                            POR.CHANGE_BAGS NO_BAGS,
+                            POR.RATE AS RATE,
+                            POR.NET_AMOUNT AS NET_AMOUNT,
+                            CASE WHEN POR.TAX_POLICY_ID IS NULL THEN 'ADD POLICY' ELSE NULL END AS ADD_POLICY,
+                            POR.REMARKS,
+                            LOOKUP_DET_NAME AS CATERGORY_NAME,
+                            LD.DET_ID AS CATEGORY_ID,
+                            FED ,
+                            CASE 
+                                WHEN FED IS NOT NULL THEN (FED * NVL(POR.NET_AMOUNT, 0) / 100)
+                                ELSE NULL
+                            END AS FED_VALUE,
+                            CASE
+                                   WHEN FED IS NULL THEN NVL(POR.NET_AMOUNT,0)  
+                                   ELSE  NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                            END AFTER_FED_VALUE,
+                            GST,
+                            CASE
+                                    WHEN FED IS NULL  THEN ((NVL(POR.NET_AMOUNT, 0) * NVL(GST,0) )/100) 
+                                    ELSE  ((NVL(POR.NET_AMOUNT, 0) + (FED * NVL(POR.NET_AMOUNT, 0) / 100)) * NVL(GST, 0) / 100)   
+                            END GST_VALUE,
+                            CASE 
+                                    WHEN GST IS NULL THEN NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                                    WHEN  FED IS NULL THEN ((NVL(POR.NET_AMOUNT, 0) * NVL(GST,0) )/100)  + NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                                    ELSE ((NVL(POR.NET_AMOUNT, 0) + (FED * NVL(POR.NET_AMOUNT, 0) / 100)) * NVL(GST, 0) / 100) +  NVL(POR.NET_AMOUNT,0)+(NVL(FED,0) * NVL(POR.NET_AMOUNT, 0) / 100) 
+                            END AFTER_GST_VALUE,
+                            AIT,
+                            POR.TAX_POLICY_ID,
+                            POR.DEAL_POLICY_ID
+                FROM 
+                                         AB_PO_PURCHASE_ORDER_DET POR
+                          JOIN   AB_ITEMS_MASTER ITM ON ITM.ITEM_ID = POR.ITEM_ID
+                          JOIN   AB_LOOKUP_DETAIL LD ON LD.DET_ID = ITM.PRODUCT_CATEGORY_ID
+                LEFT  JOIN   TAX_POLICY TP ON TP.POLICY_ID = POR.TAX_POLICY_ID
+                 WHERE
+                              POR.ORG_ID=P_ORG_ID
+                  AND    POR.DET_TYPE='SUB PO DET' 
+                  AND    POR.STATUS='Y'
+                  AND    POR.ITEM_ID IS NOT NULL
+
+                ) C
+),PO_LOV_DATA AS(
+   SELECT 
+                         PO_ID,
+                        MAX(CASE WHEN REG.REG_TYPE = 'COMPANY' AND REG.SR_ID = PO.COMPANY_ID THEN REG.REG_NAME END) AS COMPANY_NAME,
+                        MAX(CASE WHEN REG.REG_TYPE = 'DEALER'  OR REG.REG_TYPE = 'VENDOR'   AND REG.SR_ID = PO.VENDOR_ID THEN REG.PARTY_NAME END) AS VENDOR_NAME,
+                        MAX(CASE WHEN REG.REG_TYPE = 'AGENCY' AND REG.SR_ID = PO.AGENCY_ID THEN REG.REG_NAME || ' - ' || REG.REG_CODE END) AS AGENCY_NAME,
+                        MAX(CASE WHEN REG.REG_TYPE = 'SALE POINT' AND REG.SR_ID = PO.SALE_POINT_ID THEN REG.REG_NAME END) AS SALE_POINT,
+                        MAX(CASE WHEN LD.DET_ID = PO.LOADING_TYPE_ID THEN LD.LOOKUP_DET_NAME END) AS LOADING_TYPE,
+                        MAX(CASE WHEN LD.DET_ID = PO.FREIGHT_TYPE_ID THEN LD.LOOKUP_DET_NAME END) AS FREIGHT_TYPE_NAME,
+                        MAX(CASE WHEN LD.DET_ID = PO.PAYMENT_MODE_ID THEN LD.LOOKUP_DET_NAME END) AS PAYMENT_MODE_NAME,
+                        MAX(CASE WHEN LD.DET_ID = PO.TRANSACTION_TYPE_ID THEN LD.LOOKUP_DET_NAME END) AS TRANSACTION_TYPE,
+                        MAX(CASE WHEN REG.REG_TYPE = 'BANK' AND REG.SR_ID = PO.BANK_NAME_ID THEN REG.REG_NAME END) AS BANK_NAME,
+                        MAX(CASE WHEN LD.DET_ID = PO.PAYMENT_MODE_ID THEN PO.PAYMENT_MODE_ID END) AS PAYMENT_MODE_ID,
+                        MAX(CASE WHEN REG.REG_TYPE = 'AGENCY' AND REG.SR_ID = PO.AGENCY_ID THEN PO.AGENCY_ID END) AS AGENCY_ID,
+                        MAX(CASE WHEN REG.REG_TYPE = 'DEALER'  OR REG.REG_TYPE = 'VENDOR'   AND REG.SR_ID = PO.VENDOR_ID THEN PO.VENDOR_ID END) AS VENDOR_ID
+   FROM 
+                           AB_PO_PURCHASE_ORDER PO
+                LEFT JOIN AB_LOOKUP_DETAIL LD ON (LD.DET_ID = PO.LOADING_TYPE_ID 
+                                              OR LD.DET_ID = PO.FREIGHT_TYPE_ID 
+                                              OR LD.DET_ID = PO.PAYMENT_MODE_ID 
+                                              OR LD.DET_ID = PO.TRANSACTION_TYPE_ID)
+                LEFT JOIN AB_SETUP_REGISTRATION REG ON (REG.SR_ID = PO.COMPANY_ID 
+                                                    OR REG.SR_ID = PO.SALE_POINT_ID 
+                                                    OR REG.SR_ID = PO.VENDOR_ID 
+                                                    OR REG.SR_ID = PO.AGENCY_ID 
+                                                    OR REG.SR_ID = PO.BANK_NAME_ID)
+    WHERE
+             PO.ORG_ID=P_ORG_ID
+    GROUP BY
+                PO_ID
+)
+        SELECT 
+                        PO.PO_ID,
+                        TTA.DET_ID,
+                        PO.TRANSACTION_DATE,
+                        PO.COMPANY_ORDER_NO,
+                        COMPANY_NAME,
+                        VENDOR_NAME,
+                        AGENCY_NAME,
+                        SALE_POINT,
+                        LOADING_TYPE,
+                        FREIGHT_TYPE_NAME,
+                        PAYMENT_MODE_NAME,
+                        TRANSACTION_TYPE,
+                        BANK_NAME,
+                        PO.PURCHASING_TYPE,
+                        PO.LOADING_NAME AS LOADING_POINT,
+                        PO.INSTRUMENT_NO,
+                        PO.REMARKS,
+                        INITCAP (PO.CREATED_BY)||' ( '||TO_CHAR(PO.CREATED_ON, 'DD-MON-YYYY HH:MIPM') ||' )' CREATED_BY,
+                        CATERGORY_NAME,
+                        CATEGORY_ID,
+                        TTA.ITEM_NAME DD,
+                        NO_BAGS  - NVL(CANCEL_BAGS,0) + NVL( AVAILABLE_BAGS,0) - NVL( SUB_BAGS,0) NO_BAGS  ,
+                        PACKING_SIZE ITEM_NAME,
+                        RATE GROS_RATE,
+                        TTA.NET_AMOUNT GROSS_AMOUNT,
+                        FED,
+                        FED_VALUE,
+                        AFTER_FED_VALUE,
+                        GST,
+                        GST_VALUE,
+                        AFTER_GST_VALUE,
+                        AIT,
+                        AIT_VALUE,
+                        AFTER_AIT_VALUE,
+                        CASE WHEN TAX_POLICY_ID IS NULL THEN NULL ELSE ROUND(TTA.TOTAL_AMOUNT /(NO_BAGS),2) END AS PER_BAG_RATE,---        (NVL(CANCEL_BAGS, 0) +  NVL(AVAILABLE_BAGS,0) ), 2) END AS PER_BAG_RATE, --- NVL(CANCEL_BAGS, 0)+ + NVL(AVAILABLE_BAGS,0)),
+                        CASE WHEN TAX_POLICY_ID IS NULL THEN NULL ELSE ROUND(TTA.TOTAL_AMOUNT,2) END NET_AMOUNT,
+                        'Print Report' AS PRINT_REPORT,
+                         CASE WHEN  TAX_POLICY_ID  IS NULL THEN  ''  ELSE  NULL  END ADD_POLICY,
+                        TTA.TAX_POLICY_ID,
+                        DEAL_POLICY_ID,
+                        'APPROVAL_STATUS' APPROVAL_STATUS,
+                        PO.CREATED_ON,
+                        ITEM_ID,
+                        PLD.PAYMENT_MODE_ID,
+                        PLD.AGENCY_ID,
+                        PLD.VENDOR_ID
+          FROM    
+                                AB_PO_PURCHASE_ORDER PO
+                     JOIN  TOTAL_TAX_AMOUNT  TTA ON TTA.PO_ID=PO.PO_ID
+                     JOIN  PO_LOV_DATA PLD ON PLD.PO_ID=PO.PO_ID
+            LEFT JOIN  PO_CANCELLED PC ON PC.PO_DET_ID=TTA.DET_ID
+            LEFT JOIN  PO_AVAILABLE PA ON PA.PO_DET_ID=TTA.DET_ID   
+            LEFT JOIN SUB_PO ON   SUB_ID=TTA.DET_ID     
+                    WHERE 
+                                       PO_TYPE IN ('PURCHASE ORDER','SUB PO')
+                             AND   NO_BAGS<>0    
+                            --AND   PO.PURCHASING_TYPE ='COMPANY' 
+                            AND PO.STATUS='Y' 
+                            AND  PO.ORG_ID=P_ORG_ID
+                    ORDER BY
+                        PO.CREATED_ON  DESC  
+            ----------------------------------------------------------------
+        ) LOOP
+            V_PURCHASE_ORDER := PURCHASE_ORDER_OBJECT(
+                GS.PO_ID,
+                GS.DET_ID                                  ,
+                GS.TRANSACTION_DATE         ,
+                GS.COMPANY_ORDER_NO     ,
+                GS.COMPANY_NAME              ,
+                GS.VENDOR_NAME                  ,
+                GS.AGENCY_NAME                   ,
+                GS.SALE_POINT                         ,
+                GS.LOADING_TYPE                    ,
+                GS.FREIGHT_TYPE_NAME         ,
+                GS.PAYMENT_MODE_NAME    ,
+                GS.TRANSACTION_TYPE           ,
+                GS.BANK_NAME                         ,
+                GS.PURCHASING_TYPE             ,
+                GS.LOADING_POINT                 ,
+                GS.INSTRUMENT_NO               ,
+                GS.REMARKS                             ,
+                GS.CREATED_BY                        ,
+                GS.CATERGORY_NAME            ,
+                GS.CATEGORY_ID                      ,
+                GS.NO_BAGS                              ,
+                GS.ITEM_NAME                          ,
+                GS.GROS_RATE                          ,
+                GS.GROSS_AMOUNT                ,
+                GS.FED                                        ,
+                GS.FED_VALUE                           ,
+                GS.AFTER_FED_VALUE              ,
+                GS.GST                                        ,
+                GS.GST_VALUE                          ,              
+                GS.AFTER_GST_VALUE             ,
+                GS.AIT                                         ,
+                GS.AIT_VALUE                            ,
+                GS.AFTER_AIT_VALUE               ,
+                GS.PER_BAG_RATE                    ,
+                GS.NET_AMOUNT                     ,
+                GS.PRINT_REPORT                    ,
+                GS.ADD_POLICY                        ,
+                GS.TAX_POLICY_ID                    ,
+                GS.DEAL_POLICY_ID                 ,
+                GS.APPROVAL_STATUS            ,
+                GS.CREATED_ON                       ,
+                GS.ITEM_ID                                ,
+                GS.PAYMENT_MODE_ID          ,
+                GS.AGENCY_ID                          ,
+                GS.VENDOR_ID
+            );
+            PIPE ROW (V_PURCHASE_ORDER);
+        END LOOP;
+
+        RETURN;
+    END PURCHASE_ORDER;
