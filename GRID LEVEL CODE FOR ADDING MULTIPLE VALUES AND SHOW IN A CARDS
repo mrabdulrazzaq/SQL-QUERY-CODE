@@ -1,0 +1,19 @@
+======grid code total two or three values and show in a cards =======
+
+
+var model = apex.region("STK").widget().interactiveGrid("getViews", "grid").model; // LINEID is the region id of IG
+var n_dist_amount, n_total = 0;
+var col_gl_amount = model.getFieldKey("ORDER_BAGS");
+model.forEach(function(igrow)
+       {
+               
+               n_dist_amount = parseInt(igrow[col_gl_amount], 10);
+               if (!isNaN(n_dist_amount)) {
+                         n_total += n_dist_amount;
+          }
+  }
+      );
+     
+console.log(n_total);
+
+$s('P366_TOTAL_BAGS', n_total);
